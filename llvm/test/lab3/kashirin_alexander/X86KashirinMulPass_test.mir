@@ -1,0 +1,292 @@
+# RUN: llc -mtriple x86_64-unknown-linux-gnu --load=%llvmshlibdir/X86KashirinMulPass%shlibext -run-pass=x86-kashirin-mul-pass  %s -o - | FileCheck %s
+
+# test.cpp 
+#
+# __m128d muladd1(__m128d a, __m128d b, __m128d c) {
+#   __m128d result = a * b + c;
+#   return result;
+# }
+#
+# __m128d muladd2(__m128d a, __m128d b, __m128d c) {
+#   __m128d result = a * c + b;
+#   return result;
+# }
+#
+# __m128d muladd3(__m128d a, __m128d b, __m128d c) {
+#   __m128d result = a * b - c;
+#   return result;
+# }
+#
+# __m128d muladd4(__m128d a, __m128d b, __m128d c) {
+#   __m128d result = a * b + c + b;
+#   return result;
+# }
+#
+# __m128d muladd5(__m128d a, __m128d b, __m128d c) {
+#   return a * c + b;
+# }
+#
+#__m128d muladd6(__m128d a, __m128d b, __m128d c) {
+#    __m128d tmp = a * b;
+#    return c * a + b;
+#}
+#
+# __m128d muladd7(__m128d a, __m128d b, __m128d c) {
+#   __m128d temp = a * c;
+#   __m128d temp2 = b + a - c;
+#   return temp + c + temp2;
+# }
+
+
+--- |
+  target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+  target triple = "x86_64-unknown-linux-gnu"
+
+  ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd1Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %b, <2 x double> %c)
+    ret <2 x double> %0
+  }
+
+  ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
+  declare <2 x double> @llvm.fmuladd.v2f64(<2 x double>, <2 x double>, <2 x double>) #1
+
+  ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd2Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %c, <2 x double> %b)
+    ret <2 x double> %0
+  }
+
+  ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd3Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %neg = fneg <2 x double> %c
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %b, <2 x double> %neg)
+    ret <2 x double> %0
+  }
+
+  ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd4Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %b, <2 x double> %c)
+    %add = fadd <2 x double> %0, %b
+    ret <2 x double> %add
+  }
+
+  ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd5Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %c, <2 x double> %b)
+    ret <2 x double> %0
+  }
+
+   ; Function Attrs: mustprogress nofree nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd6Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #0 {
+  entry:
+    %0 = tail call <2 x double> @llvm.fmuladd.v2f64(<2 x double> %a, <2 x double> %c, <2 x double> %b)
+    ret <2 x double> %0
+  }
+
+    ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none) uwtable
+  define dso_local noundef <2 x double> @_Z12muladd7Dv2_dS_S_(<2 x double> noundef %a, <2 x double> noundef %b, <2 x double> noundef %c) local_unnamed_addr #2 {
+  entry:
+    %mul = fmul <2 x double> %a, %c
+    %add = fadd <2 x double> %a, %b
+    %sub = fsub <2 x double> %add, %c
+    %add1 = fadd <2 x double> %mul, %c
+    %add2 = fadd <2 x double> %sub, %add1
+    ret <2 x double> %add2
+  }
+
+  attributes #0 = { mustprogress nofree nosync nounwind willreturn memory(none) uwtable "min-legal-vector-width"="128" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+  attributes #1 = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
+  attributes #2 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) uwtable "min-legal-vector-width"="128" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+
+  !llvm.module.flags = !{!0, !1, !2, !3}
+
+  !0 = !{i32 1, !"wchar_size", i32 4}
+  !1 = !{i32 8, !"PIC Level", i32 2}
+  !2 = !{i32 7, !"PIE Level", i32 2}
+  !3 = !{i32 7, !"uwtable", i32 2}
+
+...
+---
+name:            _Z12muladd1Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm0 = VFMADD213PDr $xmm0, $xmm1, $xmm2, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
+...
+---
+name:            _Z12muladd2Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm0 = VFMADD213PDr $xmm0, $xmm2, $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
+...
+---
+name:            _Z12muladd3Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    renamable $xmm0 = nofpexcept SUBPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: renamable $xmm0 = nofpexcept SUBPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
+...
+---
+name:            _Z12muladd4Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, renamable $xmm1, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm0 = VFMADD213PDr $xmm0, $xmm1, $xmm2, implicit $mxcsr
+    ; CHECK-NEXT: renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0    
+...
+---
+name:            _Z12muladd5Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm0 = VFMADD213PDr $xmm0, $xmm2, $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
+...
+---
+name:            _Z12muladd6Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    renamable $xmm0 = nofpexcept MULPDrr killed renamable $xmm0, killed renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm0 = VFMADD213PDr $xmm0, $xmm2, $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
+...
+---
+name:            _Z12muladd7Dv2_dS_S_
+alignment:       16
+tracksRegLiveness: true
+debugInstrRef:   true
+tracksDebugUserValues: true
+liveins:
+  - { reg: '$xmm0' }
+  - { reg: '$xmm1' }
+  - { reg: '$xmm2' }
+frameInfo:
+  maxAlignment:    1
+  maxCallFrameSize: 0
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $xmm0, $xmm1, $xmm2
+  
+    $xmm3 = MOVAPDrr $xmm0
+    renamable $xmm3 = nofpexcept MULPDrr killed renamable $xmm3, renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    renamable $xmm0 = nofpexcept SUBPDrr killed renamable $xmm0, renamable $xmm2, implicit $mxcsr
+    renamable $xmm3 = nofpexcept ADDPDrr killed renamable $xmm3, killed renamable $xmm2, implicit $mxcsr
+    renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm3, implicit $mxcsr
+    RET64 $xmm0
+    ; CHECK: $xmm3 = MOVAPDrr $xmm0
+    ; CHECK-NEXT: $xmm3 = VFMADD213PDr $xmm3, $xmm2, $xmm2, implicit $mxcsr
+    ; CHECK-NEXT: renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm1, implicit $mxcsr
+    ; CHECK-NEXT: renamable $xmm0 = nofpexcept SUBPDrr killed renamable $xmm0, renamable $xmm2, implicit $mxcsr
+    ; CHECK-NEXT: renamable $xmm0 = nofpexcept ADDPDrr killed renamable $xmm0, killed renamable $xmm3, implicit $mxcsr
+    ; CHECK-NEXT: RET64 $xmm0
